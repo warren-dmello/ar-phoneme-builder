@@ -6,8 +6,8 @@
   <title>AR Phoneme Builder</title>
   
   <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
 
@@ -438,10 +438,10 @@
   <!-- A-Frame Scene -->
   <a-scene
     embedded
-    arjs="sourceType:webcam; debugUIEnabled:false; trackingMethod:best; displayWidth: 1280; displayHeight: 720;"
-    renderer="logarithmicDepthBuffer:true; antialias:true; alpha:true;"
-    vr-mode-ui="enabled:false"
-    style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;"
+    arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
+    renderer="antialias: true; alpha: true; precision: medium;"
+    vr-mode-ui="enabled: false"
+    style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;"
   >
     <a-marker preset="hiro" id="marker-left" emitevents="true">
       <a-box position="0 0.5 0" material="color: #f97316; opacity: 0.8" scale="1 1 1">
@@ -457,6 +457,9 @@
 
     <a-entity camera></a-entity>
   </a-scene>
+
+  <!-- Error Logger -->
+  <div id="error-log" style="position:fixed; top:0; left:0; width:100%; background:rgba(255,0,0,0.8); color:white; font-size:10px; z-index:9999; pointer-events:none; max-height:50px; overflow:hidden;"></div>
 
   <!-- Welcome Screen -->
   <div id="welcome-screen" class="screen">
@@ -520,6 +523,7 @@
       <div class="hud-controls">
         <div class="score-badge">⭐ <span id="score-val">0</span></div>
         <button class="hud-btn" onclick="showHelp()">❓</button>
+        <button class="hud-btn" onclick="document.getElementById('debug-bar').classList.toggle('hidden')" style="font-size: 10px;">DB</button>
       </div>
     </div>
 
@@ -597,14 +601,30 @@
   </div>
 
   <!-- Debug Bar -->
-  <div id="debug-bar" class="hidden">
+  <div id="debug-bar" class="hidden" style="pointer-events: auto;">
     <div class="debug-pills">
       <div id="debug-hiro" class="debug-pill">HIRO</div>
       <div id="debug-kanji" class="debug-pill">KANJI</div>
     </div>
     <span id="debug-status">AR ready — show a marker</span>
-    <button onclick="triggerWrong()" style="font-size: 8px; margin-top: 4px; cursor: pointer;">Test Wrong Feedback</button>
+    <div style="display: flex; gap: 4px;">
+      <button onclick="triggerWrong()" style="font-size: 8px; cursor: pointer;">Test Wrong</button>
+      <button onclick="forceCamera()" style="font-size: 8px; cursor: pointer;">Force Cam</button>
+      <button onclick="checkPerms()" style="font-size: 8px; cursor: pointer;">Check Perms</button>
+      <button onclick="logState()" style="font-size: 8px; cursor: pointer;">Log State</button>
+      <button onclick="location.reload()" style="font-size: 8px; cursor: pointer;">Reload</button>
+    </div>
   </div>
+
+  <script>
+    // Immediate check
+    (function() {
+      const log = document.getElementById('error-log');
+      const debugBar = document.getElementById('debug-bar');
+      if (debugBar) debugBar.classList.remove('hidden');
+      if (log) log.innerText = "Initializing...";
+    })();
+  </script>
 
   <script>
     // --- Constants & Data ---
@@ -670,19 +690,42 @@
     let chartInstance = null;
 
     // --- Initialization ---
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      const log = document.getElementById('error-log');
+      if (log) log.innerText = `Error: ${msg} [${lineNo}:${columnNo}]`;
+      return false;
+    };
+
     window.onload = () => {
+      console.log('Window Loaded');
+      const debugBar = document.getElementById('debug-bar');
+      if (debugBar) debugBar.classList.remove('hidden');
+      
+      const log = document.getElementById('error-log');
+      const af = typeof AFRAME !== 'undefined' ? "AF:OK" : "AF:ERR";
+      const ar = typeof THREEx !== 'undefined' || typeof ARjs !== 'undefined' ? "AR:OK" : "AR:ERR";
+      if (log) log.innerText = `Scripts: ${af} | ${ar}`;
+      
+      updateDebugStatus();
+      
       drawMarker('hiro', 'canvas-hiro-preview');
       drawMarker('kanji', 'canvas-kanji-preview');
       
-      document.querySelector('a-scene').addEventListener('loaded', function() {
-        console.log('A-Frame Scene Loaded');
-        document.getElementById('debug-bar').classList.remove('hidden');
-        
-        document.getElementById('marker-left').addEventListener('markerFound', () => onMarkerEvent('hiro', true));
-        document.getElementById('marker-left').addEventListener('markerLost', () => onMarkerEvent('hiro', false));
-        document.getElementById('marker-right').addEventListener('markerFound', () => onMarkerEvent('kanji', true));
-        document.getElementById('marker-right').addEventListener('markerLost', () => onMarkerEvent('kanji', false));
-      });
+      const scene = document.querySelector('a-scene');
+      if (scene) {
+        scene.addEventListener('loaded', function() {
+          console.log('A-Frame Scene Loaded');
+          updateDebugStatus();
+          
+          document.getElementById('marker-left').addEventListener('markerFound', () => onMarkerEvent('hiro', true));
+          document.getElementById('marker-left').addEventListener('markerLost', () => onMarkerEvent('hiro', false));
+          document.getElementById('marker-right').addEventListener('markerFound', () => onMarkerEvent('kanji', true));
+          document.getElementById('marker-right').addEventListener('markerLost', () => onMarkerEvent('kanji', false));
+        });
+      }
+
+      // Periodically update debug status to catch video element creation
+      setInterval(updateDebugStatus, 1000);
     };
 
     function initAudio() {
@@ -841,18 +884,25 @@
     }
 
     function updateDebugStatus() {
-      const status = document.getElementById('debug-status');
-      const video = document.querySelector('video');
-      const videoStatus = video ? "📹" : "❌";
-      
-      if (gameState.hiroDetected && gameState.kanjiDetected) {
-        status.innerText = `${videoStatus} ✅ Both detected!`;
-      } else if (gameState.hiroDetected) {
-        status.innerText = `${videoStatus} Hiro ✓ — show Kanji`;
-      } else if (gameState.kanjiDetected) {
-        status.innerText = `${videoStatus} Kanji ✓ — show Hiro`;
-      } else {
-        status.innerText = `${videoStatus} AR ready — show a marker`;
+      try {
+        const status = document.getElementById('debug-status');
+        if (!status) return;
+        
+        const video = document.querySelector('video');
+        const videoStatus = video ? "📹" : "❌";
+        
+        if (gameState.hiroDetected && gameState.kanjiDetected) {
+          status.innerText = `${videoStatus} ✅ Both detected!`;
+        } else if (gameState.hiroDetected) {
+          status.innerText = `${videoStatus} Hiro ✓ — show Kanji`;
+        } else if (gameState.kanjiDetected) {
+          status.innerText = `${videoStatus} Kanji ✓ — show Hiro`;
+        } else {
+          status.innerText = `${videoStatus} AR ready — show a marker`;
+        }
+      } catch (e) {
+        const log = document.getElementById('error-log');
+        if (log) log.innerText = `Debug Error: ${e.message}`;
       }
     }
 
@@ -1037,6 +1087,64 @@
       
       // Stop any ongoing speech
       window.speechSynthesis.cancel();
+    }
+
+    function logState() {
+      const log = document.getElementById('error-log');
+      const video = document.querySelector('video');
+      const scene = document.querySelector('a-scene');
+      const stateStr = `R:${gameState.currentRound} | H:${gameState.hiroDetected} | K:${gameState.kanjiDetected} | V:${video?1:0} | S:${scene?1:0}`;
+      if (log) log.innerText = stateStr;
+    }
+
+    function checkPerms() {
+      navigator.permissions.query({ name: 'camera' })
+        .then(res => {
+          const log = document.getElementById('error-log');
+          if (log) log.innerText = `Camera Perm: ${res.state}`;
+        })
+        .catch(err => {
+          const log = document.getElementById('error-log');
+          if (log) log.innerText = `Perm Error: ${err.message}`;
+        });
+    }
+
+    function forceCamera() {
+      const log = document.getElementById('error-log');
+      if (log) log.innerText = "Requesting camera...";
+      
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          console.log('Camera access granted');
+          if (log) log.innerText = "Camera granted. Checking video element...";
+          
+          let video = document.querySelector('video');
+          if (!video) {
+            if (log) log.innerText = "Creating missing video element...";
+            video = document.createElement('video');
+            video.setAttribute('autoplay', '');
+            video.setAttribute('playsinline', '');
+            video.style.position = 'fixed';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100vw';
+            video.style.height = '100vh';
+            video.style.objectFit = 'cover';
+            video.style.zIndex = '-2';
+            document.body.appendChild(video);
+          }
+          
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            if (log) log.innerText = "Video playing!";
+            updateDebugStatus();
+          };
+        })
+        .catch(err => {
+          console.error('Camera access denied:', err);
+          if (log) log.innerText = `Camera Error: ${err.name} - ${err.message}`;
+        });
     }
 
     // --- Error Feedback (Triggered manually if needed) ---
