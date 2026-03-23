@@ -34,8 +34,14 @@
       padding: 0;
       font-family: var(--font-main);
       overflow: hidden;
-      background-color: #000;
+      background-color: var(--bg-cream);
       color: var(--navy);
+      transition: background-color 0.3s ease;
+    }
+
+    /* Remove html background to prevent covering the video */
+    html {
+      background-color: transparent;
     }
 
     /* UI Screens */
@@ -410,6 +416,21 @@
       height: 200px;
       margin: 20px 0;
     }
+    video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -2;
+      object-fit: cover;
+      display: block !important;
+    }
+
+    /* Ensure A-Frame canvas is transparent */
+    .a-canvas {
+      background-color: transparent !important;
+    }
   </style>
 </head>
 <body>
@@ -417,10 +438,10 @@
   <!-- A-Frame Scene -->
   <a-scene
     embedded
-    arjs="sourceType:webcam; debugUIEnabled:false;"
-    renderer="logarithmicDepthBuffer:true; antialias:true;"
+    arjs="sourceType:webcam; debugUIEnabled:false; trackingMethod:best; displayWidth: 1280; displayHeight: 720;"
+    renderer="logarithmicDepthBuffer:true; antialias:true; alpha:true;"
     vr-mode-ui="enabled:false"
-    style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;"
+    style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;"
   >
     <a-marker preset="hiro" id="marker-left" emitevents="true">
       <a-box position="0 0.5 0" material="color: #f97316; opacity: 0.8" scale="1 1 1">
@@ -483,7 +504,8 @@
 
     <div class="top-bar">
       <div class="hud-controls">
-        <button class="hud-btn" onclick="replayWord()">🔊</button>
+        <button class="hud-btn" onclick="goToMenu()" title="Back to Menu">←</button>
+        <button class="hud-btn" onclick="replayWord()" title="Replay Sound">🔊</button>
       </div>
       <div class="round-info">
         <span id="round-label">Round 1 of 5</span>
@@ -559,7 +581,10 @@
         <li>Tap the pills to hear the phoneme sounds.</li>
         <li>Complete all 5 rounds to finish the session.</li>
       </ol>
-      <button class="btn btn-primary" style="width: 100%; margin: 0; margin-top: 20px;" onclick="hideHelp()">Got it</button>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-outline" style="flex: 1; margin: 0;" onclick="hideHelp()">Back</button>
+        <button class="btn btn-primary" style="flex: 1; margin: 0;" onclick="hideHelp()">Got it</button>
+      </div>
     </div>
   </div>
 
@@ -732,6 +757,11 @@
       initAudio();
       document.getElementById('welcome-screen').classList.add('hidden');
       document.getElementById('game-hud').classList.remove('hidden');
+      document.body.style.backgroundColor = 'transparent';
+      
+      // Force AR.js to resize/refresh if needed
+      window.dispatchEvent(new Event('resize'));
+      
       resetGame();
     }
 
@@ -812,14 +842,17 @@
 
     function updateDebugStatus() {
       const status = document.getElementById('debug-status');
+      const video = document.querySelector('video');
+      const videoStatus = video ? "📹" : "❌";
+      
       if (gameState.hiroDetected && gameState.kanjiDetected) {
-        status.innerText = "✅ Both detected!";
+        status.innerText = `${videoStatus} ✅ Both detected!`;
       } else if (gameState.hiroDetected) {
-        status.innerText = "Hiro ✓ — show Kanji";
+        status.innerText = `${videoStatus} Hiro ✓ — show Kanji`;
       } else if (gameState.kanjiDetected) {
-        status.innerText = "Kanji ✓ — show Hiro";
+        status.innerText = `${videoStatus} Kanji ✓ — show Hiro`;
       } else {
-        status.innerText = "AR ready — show a marker";
+        status.innerText = `${videoStatus} AR ready — show a marker`;
       }
     }
 
@@ -1000,6 +1033,10 @@
       document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
       document.getElementById('game-hud').classList.add('hidden');
       document.getElementById('welcome-screen').classList.remove('hidden');
+      document.body.style.backgroundColor = 'var(--bg-cream)';
+      
+      // Stop any ongoing speech
+      window.speechSynthesis.cancel();
     }
 
     // --- Error Feedback (Triggered manually if needed) ---
