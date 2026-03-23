@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AR Phoneme Builder</title>
+  
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-cream: #FFF8F0;
+      --navy: #1A2B45;
+      --orange-active: #f97316;
+      --orange-inactive: #ffedd5;
+      --blue-active: #3b82f6;
+      --blue-inactive: #dbeafe;
+      --green-success: #4ade80;
+      --red-error: #ef4444;
+      --font-main: 'Nunito', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-main);
+      overflow: hidden;
+      background-color: #000;
+      color: var(--navy);
+    }
+
+    /* UI Screens */
+    .screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-cream);
+      z-index: 2000;
+      padding: 20px;
+      text-align: center;
+      overflow-y: auto;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    h1 {
+      font-weight: 900;
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      margin-bottom: 0.5rem;
+      color: var(--navy);
+    }
+
+    .subtitle {
+      font-weight: 700;
+      font-size: 1.1rem;
+      opacity: 0.7;
+      margin-bottom: 2rem;
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-main);
+      font-weight: 900;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 6px 0 rgba(0,0,0,0.1);
+      margin: 8px;
+    }
+
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.1);
+    }
+
+    .btn-primary { background: var(--navy); color: white; }
+    .btn-orange { background: var(--orange-active); color: white; }
+    .btn-blue { background: var(--blue-active); color: white; }
+    .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); }
+
+    /* Difficulty Selection */
+    .difficulty-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 2rem;
+    }
+
+    .diff-btn {
+      flex: 1;
+      padding: 15px;
+      border-radius: 12px;
+      border: 2px solid #ddd;
+      background: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .diff-btn.active {
+      border-color: var(--navy);
+      background: #eef2ff;
+    }
+
+    /* How to play */
+    .how-to-play {
+      text-align: left;
+      max-width: 400px;
+      margin-bottom: 2rem;
+      background: white;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .how-to-play h3 { margin-top: 0; }
+    .how-to-play ol { padding-left: 20px; }
+    .how-to-play li { margin-bottom: 8px; }
+
+    /* Marker Cards */
+    .marker-cards {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 2rem;
+    }
+
+    .marker-card {
+      background: white;
+      padding: 10px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 120px;
+    }
+
+    .marker-card canvas {
+      width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+
+    .marker-card span {
+      display: block;
+      margin-top: 8px;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+
+    .marker-link {
+      color: var(--blue-active);
+      text-decoration: underline;
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin-top: 5px;
+      display: block;
+    }
+
+    /* HUD */
+    #game-hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1000;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #game-hud > * { pointer-events: auto; }
+
+    .top-bar {
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.9), transparent);
+    }
+
+    .progress-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      background: rgba(0,0,0,0.1);
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--green-success);
+      transition: width 0.5s ease;
+    }
+
+    .hud-controls { display: flex; gap: 10px; }
+    .hud-btn {
+      background: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      cursor: pointer;
+    }
+
+    .round-info {
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .dots { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: white; border: 1px solid #ddd; }
+    .dot.active { background: var(--navy); }
+    .dot.complete { background: var(--green-success); border-color: var(--green-success); }
+
+    .score-badge {
+      background: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 900;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .status-bar {
+      width: 100%;
+      padding: 10px;
+      background: rgba(255,255,255,0.8);
+      text-align: center;
+      font-weight: 700;
+      transition: background 0.3s ease;
+    }
+
+    .status-bar.error { background: var(--red-error); color: white; }
+
+    /* Word Popup */
+    #word-popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      background: white;
+      padding: 30px;
+      border-radius: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      text-align: center;
+      z-index: 1100;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    #word-popup.show { transform: translate(-50%, -50%) scale(1); }
+
+    .popup-emoji { font-size: 4rem; display: block; margin-bottom: 10px; }
+    .popup-word { font-size: 2.5rem; font-weight: 900; text-transform: uppercase; margin: 0; }
+    .popup-phonemes { font-size: 1.2rem; color: #666; font-weight: 700; }
+
+    /* Pills */
+    .pill-area {
+      margin-top: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      background: linear-gradient(to top, rgba(255,255,255,0.9), transparent);
+    }
+
+    .pills { display: flex; gap: 20px; }
+    .pill {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: 900;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 0 rgba(0,0,0,0.1);
+      cursor: pointer;
+    }
+
+    .pill:active { transform: translateY(4px); box-shadow: 0 4px 0 rgba(0,0,0,0.1); }
+
+    .pill-consonant { background: var(--orange-inactive); color: var(--orange-active); border: 4px solid var(--orange-active); }
+    .pill-consonant.active { background: var(--orange-active); color: white; transform: scale(1.1); }
+
+    .pill-vowel { background: var(--blue-inactive); color: var(--blue-active); border: 4px solid var(--blue-active); }
+    .pill-vowel.active { background: var(--blue-active); color: white; transform: scale(1.1); }
+
+    .pill-hint { animation: pulse-glow 2s infinite; }
+
+    @keyframes pulse-glow {
+      0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+      70% { box-shadow: 0 0 0 20px rgba(249, 115, 22, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+    }
+
+    .pill-label { font-size: 0.9rem; font-weight: 700; opacity: 0.6; }
+
+    /* Debug Bar */
+    #debug-bar {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 10px;
+      z-index: 1500;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: none;
+    }
+
+    .debug-pills { display: flex; gap: 5px; }
+    .debug-pill { padding: 2px 6px; border-radius: 4px; background: #444; }
+    .debug-pill.on { background: var(--green-success); color: black; }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.9);
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      padding: 20px;
+    }
+
+    #marker-viewer canvas {
+      max-width: 80vw;
+      max-height: 80vw;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    /* Summary */
+    .summary-list {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 20px;
+      text-align: left;
+    }
+
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+
+    /* Animations */
+    .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+
+    /* Chart Container */
+    .chart-container {
+      width: 100%;
+      max-width: 400px;
+      height: 200px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- A-Frame Scene -->
+  <a-scene
+    embedded
+    arjs="sourceType:webcam; debugUIEnabled:false;"
+    renderer="logarithmicDepthBuffer:true; antialias:true;"
+    vr-mode-ui="enabled:false"
+    style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;"
+  >
+    <a-marker preset="hiro" id="marker-left" emitevents="true">
+      <a-box position="0 0.5 0" material="color: #f97316; opacity: 0.8" scale="1 1 1">
+        <a-text id="ar-text-left" value="SH" align="center" position="0 0.6 0" rotation="-90 0 0" color="#FFF" width="4"></a-text>
+      </a-box>
+    </a-marker>
+
+    <a-marker preset="kanji" id="marker-right" emitevents="true">
+      <a-box position="0 0.5 0" material="color: #3b82f6; opacity: 0.8" scale="1 1 1">
+        <a-text id="ar-text-right" value="EE" align="center" position="0 0.6 0" rotation="-90 0 0" color="#FFF" width="4"></a-text>
+      </a-box>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <!-- Welcome Screen -->
+  <div id="welcome-screen" class="screen">
+    <h1>AR Phoneme Builder</h1>
+    <p class="subtitle">A Neurodiversity Research Prototype</p>
+    
+    <div class="difficulty-group">
+      <button class="diff-btn active" onclick="setDifficulty('easy')">EASY</button>
+      <button class="diff-btn" onclick="setDifficulty('medium')">MEDIUM</button>
+      <button class="diff-btn" onclick="setDifficulty('hard')">HARD</button>
+    </div>
+
+    <div class="how-to-play">
+      <h3>How to Play</h3>
+      <ol>
+        <li>Pick a difficulty level.</li>
+        <li>Look at the phonemes at the bottom.</li>
+        <li>Point your camera at the markers.</li>
+        <li>Bring both markers together to build the word!</li>
+        <li>Tap the pills to hear the sounds.</li>
+      </ol>
+    </div>
+
+    <div class="marker-cards">
+      <div class="marker-card">
+        <canvas id="canvas-hiro-preview"></canvas>
+        <span>HIRO (Left)</span>
+        <a class="marker-link" onclick="showMarker('hiro')">View Full</a>
+      </div>
+      <div class="marker-card">
+        <canvas id="canvas-kanji-preview"></canvas>
+        <span>KANJI (Right)</span>
+        <a class="marker-link" onclick="showMarker('kanji')">View Full</a>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="startSession()">Start Session</button>
+  </div>
+
+  <!-- Game HUD -->
+  <div id="game-hud" class="hidden">
+    <div class="progress-container">
+      <div id="progress-fill"></div>
+    </div>
+
+    <div class="top-bar">
+      <div class="hud-controls">
+        <button class="hud-btn" onclick="replayWord()">🔊</button>
+      </div>
+      <div class="round-info">
+        <span id="round-label">Round 1 of 5</span>
+        <div class="dots" id="progress-dots">
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+      </div>
+      <div class="hud-controls">
+        <div class="score-badge">⭐ <span id="score-val">0</span></div>
+        <button class="hud-btn" onclick="showHelp()">❓</button>
+      </div>
+    </div>
+
+    <div id="status-bar" class="status-bar">AR ready — show a marker</div>
+
+    <div id="word-popup">
+      <span class="popup-emoji" id="popup-emoji">🐑</span>
+      <h2 class="popup-word" id="popup-word">SHEEP</h2>
+      <span class="popup-phonemes" id="popup-phonemes">SH + EE</span>
+    </div>
+
+    <div class="pill-area">
+      <div class="pills">
+        <div id="pill-left" class="pill pill-consonant" onclick="speakPhoneme('left')">SH</div>
+        <div id="pill-right" class="pill pill-vowel" onclick="speakPhoneme('right')">EE</div>
+      </div>
+      <span class="pill-label">tap a pill to hear the sound</span>
+    </div>
+  </div>
+
+  <!-- Round Complete Overlay -->
+  <div id="round-complete" class="screen hidden">
+    <span class="popup-emoji" id="complete-emoji" style="font-size: 6rem;">🐑</span>
+    <h1 id="complete-word">SHEEP</h1>
+    <p id="complete-phonemes" style="font-size: 1.5rem; font-weight: 700;">SH + EE</p>
+    <p id="complete-attempts" style="font-size: 1.2rem; color: var(--green-success); font-weight: 900;">First try! 🌟</p>
+    
+    <div style="margin-top: 2rem;">
+      <button class="btn btn-outline" onclick="goToMenu()">← Menu</button>
+      <button class="btn btn-primary" onclick="nextRound()">Next Word →</button>
+    </div>
+  </div>
+
+  <!-- Session Summary -->
+  <div id="session-summary" class="screen hidden">
+    <h1>Session Complete!</h1>
+    <div class="chart-container">
+      <canvas id="summary-chart"></canvas>
+    </div>
+    
+    <div class="summary-list" id="summary-list">
+      <!-- Items added via JS -->
+    </div>
+
+    <div style="margin-top: 2rem;">
+      <button class="btn btn-outline" onclick="goToMenu()">← Menu</button>
+      <button class="btn btn-primary" onclick="resetGame()">Play Again</button>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal hidden">
+    <div class="how-to-play" style="color: var(--navy);">
+      <h3>How to Play</h3>
+      <ol>
+        <li>Look at the phonemes at the bottom of the screen.</li>
+        <li>Point your camera at the Hiro and Kanji markers.</li>
+        <li>When both are detected, the word will appear!</li>
+        <li>Tap the pills to hear the phoneme sounds.</li>
+        <li>Complete all 5 rounds to finish the session.</li>
+      </ol>
+      <button class="btn btn-primary" style="width: 100%; margin: 0; margin-top: 20px;" onclick="hideHelp()">Got it</button>
+    </div>
+  </div>
+
+  <!-- Marker Viewer -->
+  <div id="marker-viewer" class="modal hidden">
+    <h2 id="viewer-title">MARKER 1 — HIRO</h2>
+    <canvas id="viewer-canvas"></canvas>
+    <p style="margin-top: 20px; opacity: 0.8;">Hold phone 20-30cm away</p>
+    <button class="btn btn-outline" style="color: white; border-color: white;" onclick="hideMarker()">← Back</button>
+  </div>
+
+  <!-- Debug Bar -->
+  <div id="debug-bar" class="hidden">
+    <div class="debug-pills">
+      <div id="debug-hiro" class="debug-pill">HIRO</div>
+      <div id="debug-kanji" class="debug-pill">KANJI</div>
+    </div>
+    <span id="debug-status">AR ready — show a marker</span>
+    <button onclick="triggerWrong()" style="font-size: 8px; margin-top: 4px; cursor: pointer;">Test Wrong Feedback</button>
+  </div>
+
+  <script>
+    // --- Constants & Data ---
+    const PHONEME_SPEECH = {
+      'SH': { text:'shh', rate:0.45 },
+      'EE': { text:'eee', rate:0.45 },
+      'OO': { text:'ooh', rate:0.45 },
+      'B':  { text:'buh', rate:0.55 },
+      'K':  { text:'kuh', rate:0.55 },
+      'T':  { text:'tuh', rate:0.55 },
+      'R':  { text:'rrr', rate:0.45 },
+      'AIN':{ text:'ayn', rate:0.55 },
+      'REE':{ text:'ree', rate:0.55 },
+      'AT': { text:'at',  rate:0.55 },
+      'AI': { text:'eye', rate:0.55 },
+      'O':  { text:'oh',  rate:0.55 },
+      'I':  { text:'ih',  rate:0.55 },
+      'G':  { text:'guh', rate:0.55 },
+      'F':  { text:'fuh', rate:0.55 },
+      'D':  { text:'duh', rate:0.55 },
+      'P':  { text:'puh', rate:0.55 },
+      'N':  { text:'nnn', rate:0.45 },
+    };
+
+    const WORD_SETS = {
+      easy: [
+        { left: 'SH', right: 'EE', word: 'SHEEP', emoji: '🐑' },
+        { left: 'SH', right: 'OO', word: 'SHOE', emoji: '👟' },
+        { left: 'B', right: 'EE', word: 'BEE', emoji: '🐝' },
+        { left: 'T', right: 'EE', word: 'TEA', emoji: '🍵' },
+        { left: 'K', right: 'EE', word: 'KEY', emoji: '🔑' }
+      ],
+      medium: [
+        { left: 'SH', right: 'EE', word: 'SHEEP', emoji: '🐑' },
+        { left: 'B', right: 'OO', word: 'BOOK', emoji: '📚' },
+        { left: 'R', right: 'AIN', word: 'RAIN', emoji: '🌧️' },
+        { left: 'T', right: 'REE', word: 'TREE', emoji: '🌲' },
+        { left: 'K', right: 'AT', word: 'CAT', emoji: '🐱' }
+      ],
+      hard: [
+        { left: 'SH', right: 'EE', word: 'SHEEP', emoji: '🐑', extra: 'P' },
+        { left: 'B', right: 'OO', word: 'BOOK', emoji: '📚', extra: 'K' },
+        { left: 'R', right: 'AI', word: 'RAIN', emoji: '🌧️', extra: 'N' },
+        { left: 'D', right: 'O', word: 'DOG', emoji: '🐶', extra: 'G' },
+        { left: 'F', right: 'I', word: 'FISH', emoji: '🐟', extra: 'SH' }
+      ]
+    };
+
+    // --- State ---
+    let gameState = {
+      difficulty: 'easy',
+      currentRound: 0,
+      score: 0,
+      attempts: [0, 0, 0, 0, 0],
+      hiroDetected: false,
+      kanjiDetected: false,
+      isCooldown: false,
+      isRoundComplete: false,
+      sessionResults: []
+    };
+
+    let audioCtx = null;
+    let chartInstance = null;
+
+    // --- Initialization ---
+    window.onload = () => {
+      drawMarker('hiro', 'canvas-hiro-preview');
+      drawMarker('kanji', 'canvas-kanji-preview');
+      
+      document.querySelector('a-scene').addEventListener('loaded', function() {
+        console.log('A-Frame Scene Loaded');
+        document.getElementById('debug-bar').classList.remove('hidden');
+        
+        document.getElementById('marker-left').addEventListener('markerFound', () => onMarkerEvent('hiro', true));
+        document.getElementById('marker-left').addEventListener('markerLost', () => onMarkerEvent('hiro', false));
+        document.getElementById('marker-right').addEventListener('markerFound', () => onMarkerEvent('kanji', true));
+        document.getElementById('marker-right').addEventListener('markerLost', () => onMarkerEvent('kanji', false));
+      });
+    };
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // --- Marker Drawing ---
+    function drawMarker(type, canvasId, size = 200) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      canvas.width = size;
+      canvas.height = size;
+
+      // Background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, size, size);
+
+      const padding = 20;
+      const innerSize = size - (padding * 2);
+      const borderThickness = innerSize * 0.18;
+      
+      // Outer black border
+      ctx.fillStyle = 'black';
+      ctx.fillRect(padding, padding, innerSize, innerSize);
+
+      // White inner area
+      const whiteInnerSize = innerSize - (borderThickness * 2);
+      ctx.fillStyle = 'white';
+      ctx.fillRect(padding + borderThickness, padding + borderThickness, whiteInnerSize, whiteInnerSize);
+
+      ctx.fillStyle = 'black';
+      const unit = whiteInnerSize / 6;
+      const startX = padding + borderThickness;
+      const startY = padding + borderThickness;
+
+      if (type === 'hiro') {
+        // 4 corner squares
+        const sq = unit * 2;
+        ctx.fillRect(startX, startY, sq, sq);
+        ctx.fillRect(startX + whiteInnerSize - sq, startY, sq, sq);
+        ctx.fillRect(startX, startY + whiteInnerSize - sq, sq, sq);
+        ctx.fillRect(startX + whiteInnerSize - sq, startY + whiteInnerSize - sq, sq, sq);
+        
+        // Thin cross
+        const crossThick = unit * 0.3;
+        ctx.fillRect(startX + (whiteInnerSize/2) - (crossThick/2), startY, crossThick, whiteInnerSize);
+        ctx.fillRect(startX, startY + (whiteInnerSize/2) - (crossThick/2), whiteInnerSize, crossThick);
+      } else {
+        // Kanji pattern
+        // 2 vertical strokes
+        ctx.fillRect(startX + unit, startY + unit, unit, unit * 4);
+        ctx.fillRect(startX + unit * 4, startY + unit, unit, unit * 4);
+        // 3 horizontal bars
+        ctx.fillRect(startX + unit, startY + unit, unit * 4, unit);
+        ctx.fillRect(startX + unit, startY + unit * 2.5, unit * 4, unit);
+        ctx.fillRect(startX + unit, startY + unit * 4, unit * 4, unit);
+      }
+    }
+
+    // --- UI Actions ---
+    function setDifficulty(diff) {
+      gameState.difficulty = diff;
+      document.querySelectorAll('.diff-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.innerText.toLowerCase() === diff);
+      });
+      navigator.vibrate(30);
+    }
+
+    function startSession() {
+      initAudio();
+      document.getElementById('welcome-screen').classList.add('hidden');
+      document.getElementById('game-hud').classList.remove('hidden');
+      resetGame();
+    }
+
+    function resetGame() {
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [0, 0, 0, 0, 0];
+      gameState.sessionResults = [];
+      gameState.isRoundComplete = false;
+      
+      document.getElementById('session-summary').classList.add('hidden');
+      document.getElementById('round-complete').classList.add('hidden');
+      document.getElementById('game-hud').classList.remove('hidden');
+      
+      updateRoundUI();
+    }
+
+    function updateRoundUI() {
+      const roundData = WORD_SETS[gameState.difficulty][gameState.currentRound];
+      
+      // Update HUD
+      document.getElementById('round-label').innerText = `Round ${gameState.currentRound + 1} of 5`;
+      document.getElementById('pill-left').innerText = roundData.left;
+      document.getElementById('pill-right').innerText = roundData.right;
+      document.getElementById('score-val').innerText = gameState.score;
+      
+      // Progress dots
+      const dots = document.getElementById('progress-dots').children;
+      for(let i=0; i<5; i++) {
+        dots[i].className = 'dot';
+        if (i < gameState.currentRound) dots[i].classList.add('complete');
+        if (i === gameState.currentRound) dots[i].classList.add('active');
+      }
+
+      // Progress bar
+      document.getElementById('progress-fill').style.width = `${(gameState.currentRound / 5) * 100}%`;
+
+      // Status Bar
+      let statusText = "AR ready — show a marker";
+      if (gameState.difficulty === 'hard' && roundData.extra) {
+        statusText = `Find: ${roundData.left} + ${roundData.right} (Ends with ${roundData.extra})`;
+      } else if (gameState.difficulty === 'easy' && gameState.currentRound < 3) {
+        statusText = "Hint: Bring markers close together!";
+        document.getElementById('pill-left').classList.add('pill-hint');
+        document.getElementById('pill-right').classList.add('pill-hint');
+      } else {
+        document.getElementById('pill-left').classList.remove('pill-hint');
+        document.getElementById('pill-right').classList.remove('pill-hint');
+      }
+      document.getElementById('status-bar').innerText = statusText;
+      document.getElementById('status-bar').classList.remove('error');
+
+      // Update AR Overlays
+      document.getElementById('ar-text-left').setAttribute('value', roundData.left);
+      document.getElementById('ar-text-right').setAttribute('value', roundData.right);
+
+      gameState.isRoundComplete = false;
+      document.getElementById('word-popup').classList.remove('show');
+    }
+
+    function onMarkerEvent(type, detected) {
+      if (type === 'hiro') {
+        gameState.hiroDetected = detected;
+        document.getElementById('pill-left').classList.toggle('active', detected);
+        document.getElementById('debug-hiro').classList.toggle('on', detected);
+      } else {
+        gameState.kanjiDetected = detected;
+        document.getElementById('pill-right').classList.toggle('active', detected);
+        document.getElementById('debug-kanji').classList.toggle('on', detected);
+      }
+
+      updateDebugStatus();
+
+      if (gameState.hiroDetected && gameState.kanjiDetected && !gameState.isCooldown && !gameState.isRoundComplete) {
+        checkCombination();
+      }
+    }
+
+    function updateDebugStatus() {
+      const status = document.getElementById('debug-status');
+      if (gameState.hiroDetected && gameState.kanjiDetected) {
+        status.innerText = "✅ Both detected!";
+      } else if (gameState.hiroDetected) {
+        status.innerText = "Hiro ✓ — show Kanji";
+      } else if (gameState.kanjiDetected) {
+        status.innerText = "Kanji ✓ — show Hiro";
+      } else {
+        status.innerText = "AR ready — show a marker";
+      }
+    }
+
+    function checkCombination() {
+      // In this prototype, if both are detected, it's a "match" for the current round
+      // since the markers themselves are the input mechanism.
+      // We increment attempts for the current round.
+      gameState.attempts[gameState.currentRound]++;
+      
+      // Success logic
+      handleSuccess();
+    }
+
+    function handleSuccess() {
+      gameState.isRoundComplete = true;
+      const roundData = WORD_SETS[gameState.difficulty][gameState.currentRound];
+      
+      // Haptics
+      navigator.vibrate([80, 40, 80]);
+
+      // UI
+      const popup = document.getElementById('word-popup');
+      document.getElementById('popup-emoji').innerText = roundData.emoji;
+      document.getElementById('popup-word').innerText = roundData.word;
+      document.getElementById('popup-phonemes').innerText = `${roundData.left} + ${roundData.right}${roundData.extra ? ' + ' + roundData.extra : ''}`;
+      popup.classList.add('show');
+
+      // Speech
+      speakWord(roundData.word);
+
+      // Score
+      if (gameState.attempts[gameState.currentRound] === 1) gameState.score += 10;
+      else gameState.score += 5;
+      document.getElementById('score-val').innerText = gameState.score;
+
+      // Transition to round complete overlay after delay
+      setTimeout(() => {
+        showRoundComplete();
+      }, 2500);
+    }
+
+    function showRoundComplete() {
+      const roundData = WORD_SETS[gameState.difficulty][gameState.currentRound];
+      document.getElementById('game-hud').classList.add('hidden');
+      document.getElementById('round-complete').classList.remove('hidden');
+
+      document.getElementById('complete-emoji').innerText = roundData.emoji;
+      document.getElementById('complete-word').innerText = roundData.word;
+      document.getElementById('complete-phonemes').innerText = `${roundData.left} + ${roundData.right}${roundData.extra ? ' + ' + roundData.extra : ''}`;
+      
+      const att = gameState.attempts[gameState.currentRound];
+      document.getElementById('complete-attempts').innerText = att === 1 ? "First try! 🌟" : `${att} attempts`;
+      document.getElementById('complete-attempts').style.color = att === 1 ? 'var(--green-success)' : (att === 2 ? '#eab308' : 'var(--red-error)');
+    }
+
+    function nextRound() {
+      gameState.sessionResults.push({
+        word: WORD_SETS[gameState.difficulty][gameState.currentRound].word,
+        attempts: gameState.attempts[gameState.currentRound]
+      });
+
+      gameState.currentRound++;
+      if (gameState.currentRound >= 5) {
+        showSummary();
+      } else {
+        document.getElementById('round-complete').classList.add('hidden');
+        document.getElementById('game-hud').classList.remove('hidden');
+        updateRoundUI();
+      }
+    }
+
+    function showSummary() {
+      document.getElementById('round-complete').classList.add('hidden');
+      document.getElementById('session-summary').classList.remove('hidden');
+
+      // Build List
+      const list = document.getElementById('summary-list');
+      list.innerHTML = '';
+      gameState.sessionResults.forEach(res => {
+        const div = document.createElement('div');
+        div.className = 'summary-item';
+        let badgeClass = 'badge-green';
+        let badgeText = `✅ ${res.attempts} attempts`;
+        if (res.attempts === 1) { badgeClass = 'badge-green'; badgeText = '⚡ First try'; }
+        else if (res.attempts === 2) { badgeClass = 'badge-yellow'; }
+        else { badgeClass = 'badge-red'; badgeText = `🔄 ${res.attempts} attempts`; }
+
+        div.innerHTML = `<span>${res.word}</span> <span class="badge ${badgeClass}">${badgeText}</span>`;
+        list.appendChild(div);
+      });
+
+      // Build Chart
+      setTimeout(() => {
+        const ctx = document.getElementById('summary-chart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: gameState.sessionResults.map(r => r.word),
+            datasets: [{
+              label: 'Attempts',
+              data: gameState.sessionResults.map(r => r.attempts),
+              backgroundColor: gameState.sessionResults.map(r => {
+                if (r.attempts === 1) return '#4ade80';
+                if (r.attempts === 2) return '#facc15';
+                return '#f87171';
+              }),
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    // --- Speech & Audio ---
+    function speakPhoneme(side) {
+      const roundData = WORD_SETS[gameState.difficulty][gameState.currentRound];
+      const phoneme = side === 'left' ? roundData.left : roundData.right;
+      const config = PHONEME_SPEECH[phoneme];
+      
+      if (!config) return;
+
+      navigator.vibrate(30);
+      const utterance = new SpeechSynthesisUtterance(config.text);
+      utterance.rate = config.rate;
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function speakWord(word) {
+      const utterance = new SpeechSynthesisUtterance(word);
+      utterance.rate = 0.82;
+      utterance.pitch = 1.1;
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function replayWord() {
+      const roundData = WORD_SETS[gameState.difficulty][gameState.currentRound];
+      speakWord(roundData.word);
+    }
+
+    function playWrongChime() {
+      initAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(330, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    // --- Modals ---
+    function showHelp() { document.getElementById('help-modal').classList.remove('hidden'); }
+    function hideHelp() { document.getElementById('help-modal').classList.add('hidden'); }
+
+    function showMarker(type) {
+      document.getElementById('marker-viewer').classList.remove('hidden');
+      document.getElementById('viewer-title').innerText = type === 'hiro' ? "MARKER 1 — HIRO" : "MARKER 2 — KANJI";
+      drawMarker(type, 'viewer-canvas', 400);
+    }
+    function hideMarker() { document.getElementById('marker-viewer').classList.add('hidden'); }
+
+    function goToMenu() {
+      document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+      document.getElementById('game-hud').classList.add('hidden');
+      document.getElementById('welcome-screen').classList.remove('hidden');
+    }
+
+    // --- Error Feedback (Triggered manually if needed) ---
+    function triggerWrong() {
+      if (gameState.isCooldown || gameState.isRoundComplete) return;
+      gameState.isCooldown = true;
+      
+      navigator.vibrate(60);
+      playWrongChime();
+      
+      const status = document.getElementById('status-bar');
+      status.innerText = "Not quite — keep looking!";
+      status.classList.add('error');
+      
+      // Show "Not quite" popup
+      const popup = document.getElementById('word-popup');
+      document.getElementById('popup-emoji').innerText = "🤔";
+      document.getElementById('popup-word').innerText = "Not quite";
+      document.getElementById('popup-phonemes').innerText = "Keep looking!";
+      popup.classList.add('show');
+      
+      document.querySelector('.pills').classList.add('shake');
+      
+      setTimeout(() => {
+        status.classList.remove('error');
+        popup.classList.remove('show');
+        updateRoundUI();
+        document.querySelector('.pills').classList.remove('shake');
+        gameState.isCooldown = false;
+      }, 1400);
+    }
+  </script>
+</body>
+</html>
